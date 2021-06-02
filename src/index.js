@@ -1,6 +1,8 @@
 import { SignatureReader as PaxSignatureReader, CardReader as PaxCardReader } from "./Pax";
 import { Device, DeviceIpReader, IpDeviceCommunicator } from './Device'
 
+const MESSAGE_INPROGRESS = 'Transaction in progress';
+
 /**
  * 
  * @param {TransactionRequest} request 
@@ -14,15 +16,17 @@ export async function process(request) {
             )
         });
         updateInProgress(request.settings.deviceIpAddress, device);
-        return await device.process(request);
+        const response = await device.process(request);
+        inProgress[request.settings.deviceIpAddress] = undefined;
+        return response;
     } catch (error) {
+        if (error !== MESSAGE_INPROGRESS)
+            inProgress[request.deviceIpAddress] = undefined;
         return {
             xResult: "E",
             xStatus: "Error",
             xError: error.toString()
         }
-    } finally {
-        inProgress[request.settings.deviceIpAddress] = undefined;
     }
 }
 
@@ -41,15 +45,17 @@ export async function getSignature(request) {
             )
         });
         updateInProgress(request.deviceIpAddress, device)
-        return await device.getSignature();
+        const response = await device.getSignature();
+        inProgress[request.deviceIpAddress] = undefined;
+        return response;
     } catch (error) {
+        if (error !== MESSAGE_INPROGRESS)
+            inProgress[request.deviceIpAddress] = undefined;
         return {
             xResult: "E",
             xStatus: "Error",
             xError: error.toString()
         }
-    } finally {
-        inProgress[request.deviceIpAddress] = undefined;
     }
 }
 
@@ -68,7 +74,7 @@ const inProgress = {};
 
 function updateInProgress(ip, device) {
     if (inProgress[ip]) {
-        throw 'Transaction in progress';
+        throw MESSAGE_INPROGRESS;
     } else {
         inProgress[ip] = device;
     }
